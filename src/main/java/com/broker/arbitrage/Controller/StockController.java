@@ -1,17 +1,20 @@
 package com.broker.arbitrage.Controller;
 
-import com.broker.arbitrage.Model.StockInfo;
+import com.broker.arbitrage.Model.Stock;
 import com.broker.arbitrage.Service.PriceService;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.Collection;
 import java.util.Map;
+
 
 @RestController
 @RequestMapping("/api")
 public class StockController {
 
     private final PriceService service;
+    private static final int fetchInterval = 60000;
 
     public StockController(PriceService service) {
         this.service = service;
@@ -25,9 +28,25 @@ public class StockController {
         return Map.of("status", "added1");
     }
 
-    @GetMapping("/prices")
-    public Collection<StockInfo> getPrices() {
-        return service.getLatestPrices();
-    }
+    @GetMapping(value = "/prices-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamPrices() {
+        SseEmitter emitter = new SseEmitter();
 
+        new Thread(() -> {
+            try {
+                while (true) {
+                    Collection<Stock> prices = service.getLatestPrices();
+                    System.out.println("pricess: " + prices);
+                    emitter.send(prices);  // Push latest prices to frontend
+
+                    Thread.sleep(fetchInterval);   // Every 60 sec
+                }
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        }).start();
+
+        return emitter;
+
+    }
 }

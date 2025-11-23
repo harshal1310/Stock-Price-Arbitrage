@@ -13,9 +13,9 @@ public class SchedulerConfig {
     }
 
     // runs every 60 sec
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 60000)
     public void updatePrices() {
-       Double diff = priceService.fetchPricesDiff();
+       priceService.fetchPricesAndUpdate();
 
     }
 }

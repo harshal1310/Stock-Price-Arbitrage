@@ -17,7 +17,11 @@ import java.time.Instant;
 public class StockInfo {
     @JsonProperty("regularMarketPrice")
     double price;
+    Double nsePrice;
+    Double bsePrice;
+    @JsonProperty("longName")
     String name;
+    @JsonProperty("symbol")
     String symbol;
     Exchange exchange;
     private Instant time;

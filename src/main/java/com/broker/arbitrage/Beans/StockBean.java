@@ -1,6 +1,6 @@
 package com.broker.arbitrage.Beans;
 
-import com.broker.arbitrage.Model.StockInfo;
+import com.broker.arbitrage.Model.Stock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class StockBean {
 
     @Bean
-    public StockInfo stock() {
-        return new StockInfo();
+    public Stock stock() {
+        return new Stock();
     }
 }

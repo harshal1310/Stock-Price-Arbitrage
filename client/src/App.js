@@ -1,26 +1,32 @@
 import React, { useState, useEffect } from "react";
-import { getPrices, addStock } from "./api";
+import { addStock } from "./api";
 import "./App.css";
 
 function App() {
-    const [stocks, setStocks] = useState([]);
     const [data, setData] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
 
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 60000); // every 1 min
-        return () => clearInterval(interval);
-    }, []);
+        const eventSource = new EventSource("/api/prices-stream");
 
-    async function fetchData() {
-        const result = await getPrices();
-        setData(result);
-    }
+        eventSource.onmessage = (event) => {
+            const prices = JSON.parse(event.data);
+            console.log("Live Data:", prices);
+            setData(prices);
+        };
+
+        eventSource.onerror = (err) => {
+            console.log("SSE Error:", err);
+        };
+
+        return () => eventSource.close();
+    }, []);
 
     const filteredData = searchTerm
         ? data.filter(item =>
-            item.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+            item.body &&
+            item.body[0]?.symbol &&
+            item.body[0].symbol.toLowerCase().includes(searchTerm.toLowerCase())
         )
         : data;
 
@@ -28,9 +34,9 @@ function App() {
         <div className="container">
             <h1>NSE vs BSE Price Comparison</h1>
 
-            <StockInput setStocks={setStocks} setSearchTerm={setSearchTerm} />
+            <StockInput setSearchTerm={setSearchTerm} />
 
-            {data.length === 0 ? (
+            {filteredData.length === 0 ? (
                 <p>No stocks added yet. Add a stock above.</p>
             ) : (
                 <table>
@@ -43,19 +49,21 @@ function App() {
                         <th>Updated</th>
                     </tr>
                     </thead>
-
                     <tbody>
-                    {filteredData.map(item => (
-                        <tr key={item.symbol}>
-                            <td>{item.symbol}</td>
-                            <td>₹{item.nse}</td>
-                            <td>₹{item.bse}</td>
-                            <td style={{ color: item.diff >= 0 ? "green" : "red" }}>
-                                ₹{item.diff}
-                            </td>
-                            <td>{new Date(item.time).toLocaleTimeString()}</td>
-                        </tr>
-                    ))}
+                    {filteredData.map((item, idx) => {
+                        const s = item.body?.[0] || {};
+                        return (
+                            <tr key={idx}>
+                                <td>{s.longName ?? "-"}</td>
+                                <td>₹{s.nsePrice ?? "-"}</td>
+                                <td>₹{s.bsePrice ?? "-"}</td>
+                                <td style={{ color: s.priceDiff >= 0 ? "green" : "red" }}>
+                                    ₹{s.priceDiff != null ? s.priceDiff.toFixed(3) : "-"}
+                                </td>
+                                <td>{s.time ? new Date(s.time).toLocaleTimeString() : "-"}</td>
+                            </tr>
+                        );
+                    })}
                     </tbody>
                 </table>
             )}
@@ -63,17 +71,14 @@ function App() {
     );
 }
 
-// ----------------------------
-function StockInput({ setStocks, setSearchTerm }) {
+function StockInput({ setSearchTerm }) {
     const [input, setInput] = useState("");
 
     const handleAdd = async () => {
         const stock = input.trim().toUpperCase();
         if (!stock) return;
 
-        await addStock(stock);      // 🔥 send to backend
-        setStocks(prev => (prev.includes(stock) ? prev : [...prev, stock]));
-
+        await addStock(stock);
         setInput("");
     };
 

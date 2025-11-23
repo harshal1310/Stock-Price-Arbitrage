@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,51 +28,136 @@ public class PriceService {
     //https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/quotes?ticker=TCS.BO
 
     private RestTemplate restTemplate;
-    private StockInfo stock;
+    private Stock stock;
 
-    public PriceService(RestTemplate restTemplate, StockInfo stock) {
+    public PriceService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
-        this.stock = stock;
+
     }
 
     @Value("${rapidapi.key}")
     private String rapidApiKey;
 
     private final Set<String> monitored = ConcurrentHashMap.newKeySet();
-    private final Map<String, StockInfo> latest = new ConcurrentHashMap<>();
+    private final Map<String, Stock> latest = new ConcurrentHashMap<>();
 
     public void addStock(String symbol) {
         monitored.add(symbol.toUpperCase());
     }
 
-    public Collection<StockInfo> getLatestPrices() {
+    public Collection<Stock> getLatestPrices() {
         return latest.values();
     }
 
-    public Double fetchPricesDiff() {
+    public void fetchPricesAndUpdate() {
         Instant now = Instant.now();
 
         for (String symbol : monitored) {
             try {
-                Double nse = fetchPriceFromApi(symbol + ".NS");
-                Double bse = fetchPriceFromApi(symbol + ".BO");
-                latest.put(symbol, stock);
-                if (nse ==null) {
-                    return bse;
-                } else if (bse == null) {
-                    return nse;
-                } else {
-                   return Math.abs(nse - bse);
+                stock = new Stock();
+                Stock nseStock = fetchStockDataFromApi(symbol + ".NS");
+                Stock bseStock = fetchStockDataFromApi(symbol + ".BO");
+                Double nsePrice = getPrice(nseStock);
+                Double bsePrice = getPrice(bseStock);
+
+                Double priceDiff = getPriceDiff(nseStock, bseStock);
+                if (priceDiff == null) {
+                    priceDiff = 0.0;
                 }
+                String name = extractName(nseStock);
+                if(name == null) {
+                    name = extractName(bseStock);
+                }
+
+                symbol = extractSymbol(nseStock);
+                if(symbol == null) {
+                    symbol = extractSymbol(bseStock);
+                }
+
+                StockInfo stockInfo = new StockInfo();
+                stockInfo.setSymbol(symbol);
+                stockInfo.setNsePrice(nsePrice);
+                stockInfo.setBsePrice(bsePrice);
+                stockInfo.setPriceDiff(priceDiff);
+                stockInfo.setName(name);
+                stockInfo.setSymbol(symbol);
+                stock.setStockinfo(List.of(stockInfo));
+
+                latest.put(symbol, stock);
 
             } catch (Exception e) {
                 System.out.println("Error fetching price for " + symbol + ": " + e.getMessage());
             }
         }
+    }
+
+    private Double getPrice(Stock stock) {
+        if (stock == null ||
+                stock.getStockinfo() == null ||
+                stock.getStockinfo().isEmpty()) {
+            return null;
+        }
+
+        return stock.getStockinfo().get(0).getPrice();
+    }
+
+
+
+
+    private Double getPriceDiff(Stock nseStock, Stock bseStock) {
+        Double nsePrice = getPrice(nseStock);
+        Double bsePrice = getPrice(bseStock);
+
+        System.out.println("nsePrice: " + nsePrice);
+        System.out.println("bsePrice: " + bsePrice);
+
+
+        if (nsePrice == null && bsePrice == null) {
+            return null;
+        }
+
+        if (nsePrice == null) {
+            return bsePrice; // only BSE available
+        }
+
+        if (bsePrice == null) {
+            return nsePrice; // only NSE available
+        }
+
+        return Math.abs(nsePrice - bsePrice);
+    }
+
+    private String extractName(Stock stock) {
+        try {
+            if (stock != null &&
+                    stock.getStockinfo() != null &&
+                    !stock.getStockinfo().isEmpty() &&
+                    stock.getStockinfo().get(0).getName() != null) {
+
+                return stock.getStockinfo().get(0).getName();
+            }
+        } catch (Exception e) {
+            System.out.println("Error extracting name: " + e.getMessage());
+        }
         return null;
     }
 
-    private Double fetchPriceFromApi(String symbol) {
+    private String extractSymbol(Stock stock) {
+        try {
+            if (stock != null &&
+                    stock.getStockinfo() != null &&
+                    !stock.getStockinfo().isEmpty() &&
+                    stock.getStockinfo().get(0).getSymbol() != null) {
+
+                return stock.getStockinfo().get(0).getSymbol();
+            }
+        } catch (Exception e) {
+            System.out.println("Error extracting name: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private Stock fetchStockDataFromApi(String symbol) {
 
         String url = BASE_URL + symbol;
 
@@ -91,12 +177,11 @@ public class PriceService {
 
             ObjectMapper mapper = new ObjectMapper();
             Stock stock = mapper.readValue(json, Stock.class);
-            double price = stock.getStockinfo().get(0).getPrice();
-            return price;
+            return stock;
         } catch (Exception e) {
             System.out.println("Error fetching price for " + symbol + ": " + e.getMessage());
-            return null;
         }
+        return null;
     }
 
 
