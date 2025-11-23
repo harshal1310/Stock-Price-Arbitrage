@@ -7,15 +7,14 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.Math.round;
@@ -48,6 +47,7 @@ public class PriceService {
     public Collection<Stock> getLatestPrices() {
         return latest.values();
     }
+
 
     public void fetchPricesAndUpdate() {
         Instant now = Instant.now();
@@ -184,5 +184,58 @@ public class PriceService {
         return null;
     }
 
+
+    //multi threading
+    @Async("stockExecutor")
+    public CompletableFuture<Void> processStock(String symbol) {
+
+        try {
+            Stock nseStock = fetchStockDataFromApi(symbol + ".NS");
+            Stock bseStock = fetchStockDataFromApi(symbol + ".BO");
+
+            Double nsePrice = getPrice(nseStock);
+            Double bsePrice = getPrice(bseStock);
+
+            Double priceDiff = getPriceDiff(nseStock, bseStock);
+            if (priceDiff == null) priceDiff = 0.0;
+
+            String name = extractName(nseStock);
+            if (name == null) name = extractName(bseStock);
+
+            String finalSymbol = extractSymbol(nseStock);
+            if (finalSymbol == null) finalSymbol = extractSymbol(bseStock);
+
+            StockInfo info = new StockInfo();
+            info.setSymbol(finalSymbol);
+            info.setNsePrice(nsePrice);
+            info.setBsePrice(bsePrice);
+            info.setPriceDiff(priceDiff);
+            info.setName(name);
+
+            Stock stock = new Stock();
+            stock.setStockinfo(List.of(info));
+
+            latest.put(finalSymbol, stock); // thread-safe beacuse of concurrenthashmap
+
+        } catch (Exception e) {
+            System.out.println("Error processing stock " + symbol + ": " + e.getMessage());
+        }
+
+        return CompletableFuture.completedFuture(null);
+    }
+
+
+
+    public void fetchPricesAndUpdateWithMultiThreading() {
+
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (String symbol : monitored) {
+            futures.add(processStock(symbol)); // runs async
+        }
+
+        // Wait for all threads to finish
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+    }
 
 }
