@@ -1,0 +1,45 @@
+.container {
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
+    font-family: Arial;
+}
+
+.add-stock {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.add-stock input {
+    padding: 10px;
+    flex: 1;
+}
+
+.add-stock button {
+    padding: 10px 20px;
+    background: #1976d2;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+.add-stock button:hover {
+    background: #0f5cab;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+}
+
+th {
+    background: #f2f2f2;
+}
