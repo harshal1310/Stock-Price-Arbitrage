@@ -44,8 +44,19 @@ public class PriceService {
         monitored.add(symbol.toUpperCase());
     }
 
-    public Collection<Stock> getLatestPrices() {
-        return latest.values();
+    public Collection<Stock> getProcessStock(int page, int size) {
+        List<Stock> list = new ArrayList<>(latest.values());
+
+        // Optional: sort by symbol or id (stable ordering)
+        list.sort(Comparator.comparing(stock->stock.getStockinfo().get(0).getPriceDiff(),
+                Comparator.nullsLast(Double::compareTo)));
+
+        int start = page * size;
+        int end = Math.min(start + size, list.size());
+
+        if (start >= list.size()) return Collections.emptyList();
+
+        return list.subList(start, end);
     }
 
 

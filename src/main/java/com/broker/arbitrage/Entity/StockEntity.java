@@ -1,4 +1,4 @@
-package com.broker.arbitrage.DTO;
+package com.broker.arbitrage.Entity;
 
 import jakarta.persistence.*;
 import lombok.Data;

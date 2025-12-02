@@ -1,7 +1,7 @@
 package com.broker.arbitrage.Controller;
 
 import com.broker.arbitrage.Model.Stock;
-import com.broker.arbitrage.DTO.StockEntity;
+import com.broker.arbitrage.Entity.StockEntity;
 import com.broker.arbitrage.Repository.StockRepo;
 import com.broker.arbitrage.Service.PriceService;
 import com.broker.arbitrage.Service.StockService;
@@ -16,7 +16,6 @@ import java.util.Optional;
 
 
 @RestController
-@RequestMapping("/api")
 public class StockController {
 
     private final PriceService service;
@@ -32,7 +31,8 @@ public class StockController {
 
 
     @PostMapping("/addstock")
-    public ResponseEntity<?> addStock(@RequestParam String symbol) {
+    public ResponseEntity<?> addStockToMonitor(@RequestParam String symbol) {
+        System.out.println("Adding stock to database");
         if (symbol == null || symbol.isBlank()) {
             return new ResponseEntity<>("Please check Stock symbol", HttpStatus.BAD_REQUEST);
         }
@@ -55,15 +55,15 @@ public class StockController {
     }
 
     @GetMapping(value = "/prices-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamPrices() {
+    public SseEmitter streamPrices(@RequestParam(defaultValue = "0") int page) {
         SseEmitter emitter = new SseEmitter();
 
         new Thread(() -> {
             try {
                 while (true) {
-                    Collection<Stock> prices = service.getLatestPrices();
-                    System.out.println("pricess: " + prices);
-                    emitter.send(prices);  // Push latest prices to frontend
+                    Collection<Stock> stocks = service.getProcessStock(page, 5);
+                    System.out.println("stocks: " + stocks);
+                    emitter.send(stocks);  // Push latest prices to frontend
 
                     Thread.sleep(fetchInterval);   // Every 60 sec
                 }
